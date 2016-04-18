@@ -1,3 +1,7 @@
+#include <DueTimer.h>
+
+#include <Scheduler.h>
+
 #define A_SENSE         A0
 #define BFLAT_SENSE     A1
 #define B_SENSE         A2
@@ -11,53 +15,99 @@
 #define G_SENSE         A10
 #define GSHARP_SENSE    A11
 
+//Enumerate our notes in order
+enum Note {
+  A,
+  BFLAT,
+  B,
+  C,
+  CSHARP,
+  D,
+  DSHARP,
+  E,
+  F,
+  FSHARP,
+  G,
+  GSHARP,
+  NUM_NOTES
+}
+
+// Array of note pins to make traversing
+// all the pins easier
+const int note_pins[NUM_NOTES];
+
+// Global variables that track
+// the maximum reading seen on each
+// channel for the current sample
+// window
+int A_max       = 0;
+int BFLAT_max   = 0;
+int B_max       = 0;
+int C_max       = 0;
+int CSHARP_max  = 0;
+int D_max       = 0;
+int DSHARP_max  = 0;
+int E_max       = 0;
+int F_max       = 0;
+int FSHARP_max  = 0;
+int G_max       = 0;
+int GSHARP_max  = 0;
+
 void setup() {
-    pinMode(A_SENSE, INPUT);
-    pinMode(BFLAT_SENSE, INPUT);
-    pinMode(B_SENSE, INPUT);
-    pinMode(C_SENSE, INPUT);
-    pinMode(CSHARP_SENSE, INPUT);
-    pinMode(D_SENSE, INPUT);
-    pinMode(DSHARP_SENSE, INPUT);
-    pinMode(E_SENSE, INPUT);
-    pinMode(F_SENSE, INPUT);
-    pinMode(FSHARP_SENSE, INPUT);
-    pinMode(G_SENSE, INPUT);
-    pinMode(GSHARP_SENSE, INPUT);
+  set_pins();
+}
+
+// ISR to be called at regular interval.
+// Samples every analog channel
+// and adjusts the maximum seen on that channel
+// in the current sample window
+void sample_isr() {
+  int reading;
+  reading = analogRead(A_SENSE);
+  if(reading > A_max) A_max = reading;
+  
+  reading = analogRead(BFLAT_SENSE);
+  if(reading > BFLAT_max) BFLAT_max = reading;
+  
+  reading = analogRead(B_SENSE);
+  if(reading > B_max) B_max = reading;
+  
+  reading = analogRead(A_SENSE);
+  if(reading > A_max) A_max = reading;
+  
+  reading = analogRead(A_SENSE);
+  if(reading > A_max) A_max = reading;
+  
+  reading = analogRead(A_SENSE);
+  if(reading > A_max) A_max = reading;
+  
+  reading = analogRead(A_SENSE);
+  if(reading > A_max) A_max = reading;
+  
+  reading = analogRead(A_SENSE);
+  if(reading > A_max) A_max = reading;
+  
+  reading = analogRead(A_SENSE);
+  if(reading > A_max) A_max = reading;
+  
+  reading = analogRead(A_SENSE);
+  if(reading > A_max) A_max = reading;
+  
+  reading = analogRead(A_SENSE);
+  if(reading > A_max) A_max = reading;
+  
+  reading = analogRead(A_SENSE);
+  if(reading > A_max) A_max = reading;
 }
 
 void loop() {
-
+  Serial.println("Hello");
 }
 
-
-volatile boolean l;
-
-void TC0_Handler()
-{
-    long dummy=REG_TC0_SR0; // vital - reading this clears some flag
-    // otherwise you get infinite interrupts
-    l= !l;
+void loop2() {
+  digitalWrite(13,HIGH);
+  delay(500);
+  digitalWrite(13,LOW);
+  delay(500);
 }
 
-void setup(){
-    pinMode(13,OUTPUT);
-    pinMode(2,OUTPUT);    // port B pin 25  
-    analogWrite(2,255);   // sets up some other registers I haven't worked out yet
-    REG_PIOB_PDR = 1<<25; // disable PIO, enable peripheral
-    REG_PIOB_ABSR= 1<<25; // select peripheral B
-    REG_TC0_WPMR=0x54494D00; // enable write to registers
-    REG_TC0_CMR0=0b00000000000010011100010000000000; // set channel mode register (see datasheet)
-    REG_TC0_RC0=100000000; // counter period
-    REG_TC0_RA0=30000000;  // PWM value
-    REG_TC0_CCR0=0b101;    // start counter
-    REG_TC0_IER0=0b00010000; // enable interrupt on counter=rc
-    REG_TC0_IDR0=0b11101111; // disable other interrupts
-
-    NVIC_EnableIRQ(TC0_IRQn); // enable TC0 interrupts
-
-}
-
-void loop(){
-    digitalWrite(13,l);
-}
