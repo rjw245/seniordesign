@@ -1,60 +1,54 @@
 #include <DueTimer.h>
 
-#include <Scheduler.h>
+//GEN(NAME, PIN, MIDINUM)
+#define FOREACH_NOTE(GEN) \
+    GEN(A,      A0,     21) \
+    GEN(BFLAT,  A1,     22) \
+    GEN(B,      A2,     23) \
+    GEN(C,      A3,     24) \
+    GEN(CSHARP, A4,     25) \
+    GEN(D,      A5,     26) \
+    GEN(DSHARP, A6,     27) \
+    GEN(E,      A7,     28) \
+    GEN(F,      A8,     29) \
+    GEN(FSHARP, A9,     30) \
+    GEN(G,      A10,    31) \
+    GEN(GSHARP, A11,    32) 
 
-#define A_SENSE         A0
-#define BFLAT_SENSE     A1
-#define B_SENSE         A2
-#define C_SENSE         A3
-#define CSHARP_SENSE    A4
-#define D_SENSE         A5
-#define DSHARP_SENSE    A6
-#define E_SENSE         A7
-#define F_SENSE         A8
-#define FSHARP_SENSE    A9
-#define G_SENSE         A10
-#define GSHARP_SENSE    A11
+#define GEN_ENUM(NAME, PIN, MIDINUM) NAME,
+#define GEN_PIN_ARRAY(NAME, PIN, MIDINUM) [NAME] = PIN,
+#define GEN_MIDINUM_ARRAY(NAME, PIN, MIDINUM) [NAME] = MIDINUM,
 
 //Enumerate our notes in order
 enum Note {
-  A,
-  BFLAT,
-  B,
-  C,
-  CSHARP,
-  D,
-  DSHARP,
-  E,
-  F,
-  FSHARP,
-  G,
-  GSHARP,
-  NUM_NOTES
+    FOREACH_NOTE(GEN_ENUM)
+    NUM_NOTES
 }
 
 // Array of note pins to make traversing
 // all the pins easier
-const int note_pins[NUM_NOTES];
+const int note_pins[NUM_NOTES] =
+{
+    FOREACH_NOTE(GEN_PIN_ARRAY)
+}
+
+//Array of MIDI note numbers
+//to correspond with each note
+const int note_midinum[NUM_NOTES] =
+{
+    FOREACH_NOTE(GEN_MIDINUM_ARRAY)
+}
 
 // Global variables that track
 // the maximum reading seen on each
 // channel for the current sample
 // window
-int A_max       = 0;
-int BFLAT_max   = 0;
-int B_max       = 0;
-int C_max       = 0;
-int CSHARP_max  = 0;
-int D_max       = 0;
-int DSHARP_max  = 0;
-int E_max       = 0;
-int F_max       = 0;
-int FSHARP_max  = 0;
-int G_max       = 0;
-int GSHARP_max  = 0;
+static const int note_max[NUM_NOTES] = { 0 }; //Init all to zero
 
 void setup() {
-  set_pins();
+    for(int i=0; i<NUM_NOTES; i++) {
+        pinMode(note_pins[i],INPUT);
+    }
 }
 
 // ISR to be called at regular interval.
@@ -62,52 +56,29 @@ void setup() {
 // and adjusts the maximum seen on that channel
 // in the current sample window
 void sample_isr() {
-  int reading;
-  reading = analogRead(A_SENSE);
-  if(reading > A_max) A_max = reading;
-  
-  reading = analogRead(BFLAT_SENSE);
-  if(reading > BFLAT_max) BFLAT_max = reading;
-  
-  reading = analogRead(B_SENSE);
-  if(reading > B_max) B_max = reading;
-  
-  reading = analogRead(A_SENSE);
-  if(reading > A_max) A_max = reading;
-  
-  reading = analogRead(A_SENSE);
-  if(reading > A_max) A_max = reading;
-  
-  reading = analogRead(A_SENSE);
-  if(reading > A_max) A_max = reading;
-  
-  reading = analogRead(A_SENSE);
-  if(reading > A_max) A_max = reading;
-  
-  reading = analogRead(A_SENSE);
-  if(reading > A_max) A_max = reading;
-  
-  reading = analogRead(A_SENSE);
-  if(reading > A_max) A_max = reading;
-  
-  reading = analogRead(A_SENSE);
-  if(reading > A_max) A_max = reading;
-  
-  reading = analogRead(A_SENSE);
-  if(reading > A_max) A_max = reading;
-  
-  reading = analogRead(A_SENSE);
-  if(reading > A_max) A_max = reading;
+    int reading;
+    for(int i=0; i<NUM_NOTES; i++) {
+        reading = analogRead(note_pins[i]);
+        if(reading > note_max[i]) { note_max[i] = reading; }
+    }
+}
+
+//Called every time a sample window completes
+//Resets the maximum seen for each note to zero
+void new_sample_window() {
+    for(int i=0; i<NUM_NOTES; i++) {
+        note_max[i] = 0;
+    }
 }
 
 void loop() {
-  Serial.println("Hello");
+    Serial.println("Hello");
 }
 
 void loop2() {
-  digitalWrite(13,HIGH);
-  delay(500);
-  digitalWrite(13,LOW);
-  delay(500);
+    digitalWrite(13,HIGH);
+    delay(500);
+    digitalWrite(13,LOW);
+    delay(500);
 }
 
