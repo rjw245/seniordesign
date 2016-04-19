@@ -1,5 +1,13 @@
 #include <DueTimer.h>
 
+#define ADC_RES     12
+#define ADC_MAX     4095
+
+//Remember that the midpoint is at ADC_MAX/2, roughly
+#define NOTEON_THRESH  1000
+#define NOTEOFF_THRESH 600 
+#define CHANNEL        1
+
 //GEN(NAME, PIN, MIDINUM)
 #define FOREACH_NOTE(GEN) \
     GEN(A,      A0,     21) \
@@ -45,6 +53,11 @@ const int note_midinum[NUM_NOTES] =
 // window
 static const int note_max[NUM_NOTES] = { 0 }; //Init all to zero
 
+//Keeps track of whether a note is currently on
+static bool note_on[NUM_NOTES] = { 0 };
+
+bool window_complete = false;
+
 void setup() {
     for(int i=0; i<NUM_NOTES; i++) {
         pinMode(note_pins[i],INPUT);
@@ -65,20 +78,43 @@ void sample_isr() {
 
 //Called every time a sample window completes
 //Resets the maximum seen for each note to zero
-void new_sample_window() {
+void new_sample_window_isr() {
     for(int i=0; i<NUM_NOTES; i++) {
         note_max[i] = 0;
     }
 }
 
+
+//Triggered by some timer to signal the end of sample window
+//Raises a flag to send a signal to the main loop
+void sample_window_ended_isr()
+{
+    window_complete = true;
+}
+
 void loop() {
-    Serial.println("Hello");
-}
+    if (window_complete) {
+        window_complete = false;
 
-void loop2() {
-    digitalWrite(13,HIGH);
-    delay(500);
-    digitalWrite(13,LOW);
-    delay(500);
-}
+        for(int i=0; i<NUM_NOTES; i++) {
+            //Note off --> on
+            if (!note_on[i]  &&  note_max[i] > NOTEON_THRESH) {
+                note_on[i]=true;
+                int velocity = amp_to_vel(note_max[i]);
+                sendNoteOn(note_midinum[i], velocity, CHANNEL);
+            }
 
+            //Note on --> off
+            else if (note_on[i]  &&  note_max[i] < NOTEOFF_THRESH) {
+                note_on[i] = false;
+                sendNoteOff(note_midinum[i], CHANNEL);
+            }
+            
+            //Note on --> on again (hit again before dying off completely)
+            else if (note_on[i]  &&  note_max[i] > NOTEON_THRESH) {
+                sendNoteOn(note_midinum[i], velocity, CHANNEL);
+            }
+        }
+
+    }
+}
