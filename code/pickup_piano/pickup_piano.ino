@@ -111,10 +111,10 @@ void loop() {
             }
             
             //Note on --> on again (hit again before dying off completely)
+            //TODO: This has a problem: it will fire repeatedly once a note is on
             else if (note_on[i]  &&  note_max[i] > NOTEON_THRESH) {
                 sendNoteOn(note_midinum[i], velocity, CHANNEL);
             }
         }
-
     }
 }
