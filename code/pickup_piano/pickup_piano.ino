@@ -1,4 +1,5 @@
 #include <DueTimer.h>
+#include "MIDIUSB.h"
 
 #define ADC_RES     12
 #define ADC_MAX     4095
@@ -21,7 +22,7 @@
     GEN(F,      A8,     29) \
     GEN(FSHARP, A9,     30) \
     GEN(G,      A10,    31) \
-    GEN(GSHARP, A11,    32) 
+    GEN(GSHARP, A11,    32) \
 
 #define GEN_ENUM(NAME, PIN, MIDINUM) NAME,
 #define GEN_PIN_ARRAY(NAME, PIN, MIDINUM) [NAME] = PIN,
@@ -31,27 +32,27 @@
 enum Note {
     FOREACH_NOTE(GEN_ENUM)
     NUM_NOTES
-}
+};
 
 // Array of note pins to make traversing
 // all the pins easier
-const int note_pins[NUM_NOTES] =
+static const int note_pins[NUM_NOTES] =
 {
     FOREACH_NOTE(GEN_PIN_ARRAY)
-}
+};
 
 //Array of MIDI note numbers
 //to correspond with each note
 const int note_midinum[NUM_NOTES] =
 {
     FOREACH_NOTE(GEN_MIDINUM_ARRAY)
-}
+};
 
 // Global variables that track
 // the maximum reading seen on each
 // channel for the current sample
 // window
-static const int note_max[NUM_NOTES] = { 0 }; //Init all to zero
+static int note_max[NUM_NOTES] = { 0 }; //Init all to zero
 
 //Keeps track of whether a note is currently on
 static bool note_on[NUM_NOTES] = { 0 };
@@ -92,6 +93,16 @@ void sample_window_ended_isr()
     window_complete = true;
 }
 
+void noteOn(byte channel, byte pitch, byte velocity) {
+  midiEventPacket_t noteOn = {0x09, 0x90 | channel, pitch, velocity};
+  MidiUSB.sendMIDI(noteOn);
+}
+
+void noteOff(byte channel, byte pitch, byte velocity) {
+  midiEventPacket_t noteOff = {0x08, 0x80 | channel, pitch, velocity};
+  MidiUSB.sendMIDI(noteOff);
+}
+
 void loop() {
     if (window_complete) {
         window_complete = false;
@@ -101,20 +112,30 @@ void loop() {
             if (!note_on[i]  &&  note_max[i] > NOTEON_THRESH) {
                 note_on[i]=true;
                 int velocity = amp_to_vel(note_max[i]);
-                sendNoteOn(note_midinum[i], velocity, CHANNEL);
+                noteOn(CHANNEL, note_midinum[i], velocity);
+                MidiUSB.flush();
             }
 
             //Note on --> off
             else if (note_on[i]  &&  note_max[i] < NOTEOFF_THRESH) {
                 note_on[i] = false;
-                sendNoteOff(note_midinum[i], CHANNEL);
+                noteOff(CHANNEL, note_midinum[i], 0);
+                MidiUSB.flush();
             }
             
             //Note on --> on again (hit again before dying off completely)
             //TODO: This has a problem: it will fire repeatedly once a note is on
             else if (note_on[i]  &&  note_max[i] > NOTEON_THRESH) {
-                sendNoteOn(note_midinum[i], velocity, CHANNEL);
+                int velocity = amp_to_vel(note_max[i]);
+                noteOn(CHANNEL, note_midinum[i], velocity);
+                MidiUSB.flush();
             }
         }
     }
 }
+
+//Maps the wave amplitude to a velocity
+int amp_to_vel(int amp) {
+  return amp/2;
+}
+
