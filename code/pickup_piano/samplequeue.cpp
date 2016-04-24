@@ -1,7 +1,8 @@
 #include "samplequeue.h"
 #include "Arduino.h"
+#include "constants.h"
 
-#define DEFAULT_WINDOW  1000 //samples
+#define DEFAULT_WINDOW  (SAMPLE_RATE*WINDOW_PERIOD) //samples
 
 SampleQueue::SampleQueue() {
   sample_squared_sum = 0;

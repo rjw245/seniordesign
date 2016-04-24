@@ -1,6 +1,4 @@
 
-
-
 class SampleQueue {
   public:
     SampleQueue();
@@ -14,11 +12,11 @@ class SampleQueue {
   
   private:
     void zero_out();
-    long sample_squared_sum;
+    volatile long sample_squared_sum;
     int *storage;
     int capacity;
-    int empty_slots;
-    int head;
+    volatile int empty_slots;
+    volatile int head;
   
 };
 

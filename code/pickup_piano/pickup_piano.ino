@@ -1,20 +1,11 @@
 #include <DueTimer.h>
 #include "MIDIUSB.h"
 #include "samplequeue.h"
+#include "constants.h"
 
 #define DEBUG       1
 
-#define ADC_RES     12
-#define ADC_MAX     4095
 
-#define SAMPLE_RATE   10000 //Hz
-#define WINDOW_PERIOD (0.003) //seconds
-#define NUM_SAMP  (WINDOW*SAMPLE_RATE)
-
-//Remember that the midpoint is at ADC_MAX/2, roughly
-#define NOTEON_THRESH  1000
-#define NOTEOFF_THRESH 850 
-#define CHANNEL        1
 
 //GEN(NAME, PIN, MIDINUM)
 #define FOREACH_NOTE(GEN) \
@@ -66,7 +57,7 @@ static volatile bool window_complete = false;
 
 //Keeps track of the rolling RMS over the last
 //3ms of samples
-static volatile int rolling_rms[NUM_NOTES] = { 0 };
+static SampleQueue samplequeues[NUM_NOTES];
 
 //Partial solution
 static volatile int sum_squared_samples[NUM_NOTES] = { 0 };
@@ -81,7 +72,6 @@ void setup() {
 
     //Set up timer callbacks
     Timer3.attachInterrupt(sample_isr).setFrequency(SAMPLE_RATE).start();
-    Timer4.attachInterrupt(sample_window_ended_isr).setPeriod(WINDOW_PERIOD).start();
 }
 
 // ISR to be called at regular interval.
@@ -89,27 +79,9 @@ void setup() {
 // and adjusts the maximum seen on that channel
 // in the current sample window
 void sample_isr() {
-    int reading;
     for(int i=0; i<NUM_NOTES; i++) {
-        reading = analogRead(notes[i].pin);
-        if(reading > note_max[i]) { note_max[i] = reading; }
+        samplequeues[i].add(analogRead(notes[i].pin));
     }
-}
-
-//Called every time a sample window completes
-//Resets the maximum seen for each note to zero
-void new_sample_window() {
-    for(int i=0; i<NUM_NOTES; i++) {
-        note_max[i] = 0;
-    }
-}
-
-
-//Triggered by some timer to signal the end of sample window
-//Raises a flag to send a signal to the main loop
-void sample_window_ended_isr()
-{
-    window_complete = true;
 }
 
 void noteOn(byte channel, byte pitch, byte velocity) {
@@ -133,38 +105,33 @@ void loop() {
 }
 
 void detect_notes() {
-    if (window_complete) {
-        window_complete = false;
-
-        for(int i=0; i<NUM_NOTES; i++) {
-            //Note off --> on
-            if (!note_on[i]  &&  note_max[i] > NOTEON_THRESH) {
-                note_on[i]=true;
-                int velocity = amp_to_vel(note_max[i]);
-                noteOn(CHANNEL, notes[i].midinum, velocity);
-                MidiUSB.flush();
-            }
-
-            //Note on --> off
-            else if (note_on[i]  &&  note_max[i] < NOTEOFF_THRESH) {
-                note_on[i] = false;
-                noteOff(CHANNEL, notes[i].midinum, 0);
-                MidiUSB.flush();
-            }
-            /*
-            //Note on --> on again (hit again before dying off completely)
-            //TODO: This has a problem: it will fire repeatedly once a note is on
-            else if (note_on[i]  &&  note_max[i] > NOTEON_THRESH) {
-                int velocity = amp_to_vel(note_max[i]);
-                noteOn(CHANNEL, notes[i].midinum, velocity);
-                MidiUSB.flush();
-            }
-            */
-            #if DEBUG
-              Serial.println(note_max[i]);
-            #endif
+    for(int i=0; i<NUM_NOTES; i++) {
+        //Note off --> on
+        if (!note_on[i]  &&  samplequeues[i].getRMS() > NOTEON_THRESH) {
+            note_on[i]=true;
+            int velocity = amp_to_vel(note_max[i]);
+            noteOn(CHANNEL, notes[i].midinum, velocity);
+            MidiUSB.flush();
         }
-        new_sample_window();
+
+        //Note on --> off
+        else if (note_on[i]  &&  samplequeues[i].getRMS() < NOTEOFF_THRESH) {
+            note_on[i] = false;
+            noteOff(CHANNEL, notes[i].midinum, 0);
+            MidiUSB.flush();
+        }
+        /*
+        //Note on --> on again (hit again before dying off completely)
+        //TODO: This has a problem: it will fire repeatedly once a note is on
+        else if (note_on[i]  &&  note_max[i] > NOTEON_THRESH) {
+            int velocity = amp_to_vel(note_max[i]);
+            noteOn(CHANNEL, notes[i].midinum, velocity);
+            MidiUSB.flush();
+        }
+        */
+        #if DEBUG
+          Serial.println(note_max[i]);
+        #endif
     }
 }
 
