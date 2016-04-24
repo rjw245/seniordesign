@@ -1,5 +1,6 @@
 #include <DueTimer.h>
 #include "MIDIUSB.h"
+#include "samplequeue.h"
 
 #define DEBUG       1
 
@@ -7,7 +8,8 @@
 #define ADC_MAX     4095
 
 #define SAMPLE_RATE   10000 //Hz
-#define WINDOW_PERIOD 37000 //usec
+#define WINDOW_PERIOD (0.003) //seconds
+#define NUM_SAMP  (WINDOW*SAMPLE_RATE)
 
 //Remember that the midpoint is at ADC_MAX/2, roughly
 #define NOTEON_THRESH  1000
@@ -46,7 +48,7 @@ enum Note_enum {
     NUM_NOTES
 };
 
-const Note notes[NUM_NOTES] =
+static const Note notes[NUM_NOTES] =
 {
     FOREACH_NOTE(GEN_STRUCT)
 };
@@ -60,7 +62,14 @@ static volatile int note_max[NUM_NOTES] = { 0 }; //Init all to zero
 //Keeps track of whether a note is currently on
 static bool note_on[NUM_NOTES] = { 0 };
 
-volatile bool window_complete = false;
+static volatile bool window_complete = false;
+
+//Keeps track of the rolling RMS over the last
+//3ms of samples
+static volatile int rolling_rms[NUM_NOTES] = { 0 };
+
+//Partial solution
+static volatile int sum_squared_samples[NUM_NOTES] = { 0 };
 
 void setup() {
     #if DEBUG
