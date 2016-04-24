@@ -29,12 +29,10 @@
     GEN(G,      A10,    31) \
     GEN(GSHARP, A11,    32)
 
-#define GEN_ENUM(NAME, PIN, MIDINUM) NAME,
 #define GEN_STRUCT(NAME, PIN, MIDINUM) \
     { .name    = #NAME, \
       .pin     = PIN, \
       .midinum = MIDINUM },
-
 typedef struct {
   String name;
   int pin;
@@ -42,6 +40,7 @@ typedef struct {
 } Note;
 
 //Enumerate our notes in order
+#define GEN_ENUM(NAME, PIN, MIDINUM) NAME,
 enum Note_enum {
     FOREACH_NOTE(GEN_ENUM)
     NUM_NOTES
