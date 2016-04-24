@@ -35,25 +35,26 @@
 #define GEN_ENUM(NAME, PIN, MIDINUM) NAME,
 #define GEN_PIN_ARRAY(NAME, PIN, MIDINUM) [NAME] = PIN,
 #define GEN_MIDINUM_ARRAY(NAME, PIN, MIDINUM) [NAME] = MIDINUM,
+#define GEN_STRUCT(NAME, PIN, MIDINUM) \
+    { .name    = #NAME, \
+      .pin     = PIN, \
+      .midinum = MIDINUM },
+
+typedef struct {
+  String name;
+  int pin;
+  int midinum;
+} Note;
 
 //Enumerate our notes in order
-enum Note {
+enum Note_enum {
     FOREACH_NOTE(GEN_ENUM)
     NUM_NOTES
 };
 
-// Array of note pins to make traversing
-// all the pins easier
-static const int note_pins[NUM_NOTES] =
+const Note notes[NUM_NOTES] =
 {
-    FOREACH_NOTE(GEN_PIN_ARRAY)
-};
-
-//Array of MIDI note numbers
-//to correspond with each note
-const int note_midinum[NUM_NOTES] =
-{
-    FOREACH_NOTE(GEN_MIDINUM_ARRAY)
+    FOREACH_NOTE(GEN_STRUCT)
 };
 
 // Global variables that track
@@ -72,7 +73,7 @@ void setup() {
       Serial.begin(9600);
     #endif
     for(int i=0; i<NUM_NOTES; i++) {
-        pinMode(note_pins[i],INPUT);
+        pinMode(notes[i].pin,INPUT);
     }
 
     //Set up timer callbacks
@@ -87,7 +88,7 @@ void setup() {
 void sample_isr() {
     int reading;
     for(int i=0; i<NUM_NOTES; i++) {
-        reading = analogRead(note_pins[i]);
+        reading = analogRead(notes[i].pin);
         if(reading > note_max[i]) { note_max[i] = reading; }
     }
 }
@@ -137,14 +138,14 @@ void detect_notes() {
             if (!note_on[i]  &&  note_max[i] > NOTEON_THRESH) {
                 note_on[i]=true;
                 int velocity = amp_to_vel(note_max[i]);
-                noteOn(CHANNEL, note_midinum[i], velocity);
+                noteOn(CHANNEL, notes[i].midinum, velocity);
                 MidiUSB.flush();
             }
 
             //Note on --> off
             else if (note_on[i]  &&  note_max[i] < NOTEOFF_THRESH) {
                 note_on[i] = false;
-                noteOff(CHANNEL, note_midinum[i], 0);
+                noteOff(CHANNEL, notes[i].midinum, 0);
                 MidiUSB.flush();
             }
             /*
@@ -152,7 +153,7 @@ void detect_notes() {
             //TODO: This has a problem: it will fire repeatedly once a note is on
             else if (note_on[i]  &&  note_max[i] > NOTEON_THRESH) {
                 int velocity = amp_to_vel(note_max[i]);
-                noteOn(CHANNEL, note_midinum[i], velocity);
+                noteOn(CHANNEL, notes[i].midinum, velocity);
                 MidiUSB.flush();
             }
             */
