@@ -5,8 +5,6 @@
 
 #define DEBUG       1
 
-
-
 //GEN(NAME, PIN, MIDINUM)
 #define FOREACH_NOTE(GEN) \
     GEN(A,      A0,     21) \
@@ -44,12 +42,6 @@ static const Note notes[NUM_NOTES] =
     FOREACH_NOTE(GEN_STRUCT)
 };
 
-// Global variables that track
-// the maximum reading seen on each
-// channel for the current sample
-// window
-static volatile int note_max[NUM_NOTES] = { 0 }; //Init all to zero
-
 //Keeps track of whether a note is currently on
 static bool note_on[NUM_NOTES] = { 0 };
 
@@ -75,9 +67,9 @@ void setup() {
 }
 
 // ISR to be called at regular interval.
-// Samples every analog channel
-// and adjusts the maximum seen on that channel
-// in the current sample window
+// Samples every note
+// and adds the sample to that note's
+// sample queue.
 void sample_isr() {
     for(int i=0; i<NUM_NOTES; i++) {
         samplequeues[i].add(analogRead(notes[i].pin));
@@ -106,16 +98,17 @@ void loop() {
 
 void detect_notes() {
     for(int i=0; i<NUM_NOTES; i++) {
+        int rms = samplequeues[i].getRMS();
         //Note off --> on
-        if (!note_on[i]  &&  samplequeues[i].getRMS() > NOTEON_THRESH) {
+        if (!note_on[i]  &&  rms > NOTEON_THRESH) {
             note_on[i]=true;
-            int velocity = amp_to_vel(note_max[i]);
+            int velocity = amp_to_vel(rms);
             noteOn(CHANNEL, notes[i].midinum, velocity);
             MidiUSB.flush();
         }
 
         //Note on --> off
-        else if (note_on[i]  &&  samplequeues[i].getRMS() < NOTEOFF_THRESH) {
+        else if (note_on[i]  &&  rms < NOTEOFF_THRESH) {
             note_on[i] = false;
             noteOff(CHANNEL, notes[i].midinum, 0);
             MidiUSB.flush();
@@ -130,7 +123,7 @@ void detect_notes() {
         }
         */
         #if DEBUG
-          Serial.println(note_max[i]);
+          Serial.println(rms);
         #endif
     }
 }
