@@ -15,7 +15,7 @@
 #define CHANNEL        1
 
 //GEN(NAME, PIN, MIDINUM)
-#define FOREACH_NOTE_BACKUP(GEN) \
+#define FOREACH_NOTE(GEN) \
     GEN(A,      A0,     21) \
     GEN(BFLAT,  A1,     22) \
     GEN(B,      A2,     23) \
@@ -27,14 +27,9 @@
     GEN(F,      A8,     29) \
     GEN(FSHARP, A9,     30) \
     GEN(G,      A10,    31) \
-    GEN(GSHARP, A11,    32) \
-
-#define FOREACH_NOTE(GEN) \
-    GEN(GSHARP, A11,    32) \
+    GEN(GSHARP, A11,    32)
 
 #define GEN_ENUM(NAME, PIN, MIDINUM) NAME,
-#define GEN_PIN_ARRAY(NAME, PIN, MIDINUM) [NAME] = PIN,
-#define GEN_MIDINUM_ARRAY(NAME, PIN, MIDINUM) [NAME] = MIDINUM,
 #define GEN_STRUCT(NAME, PIN, MIDINUM) \
     { .name    = #NAME, \
       .pin     = PIN, \
