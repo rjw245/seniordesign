@@ -5,54 +5,54 @@
 
 #define DEBUG       1
 
-//GEN(NAME, PIN, MIDINUM)
+// All note information to be passed to macros
+// GEN(NAME, PIN, MIDINUM, PERIOD)
 #define FOREACH_NOTE(GEN) \
-    GEN(A,      A0,     21) \
-GEN(BFLAT,  A1,     22) \
-GEN(B,      A2,     23) \
-GEN(C,      A3,     24) \
-GEN(CSHARP, A4,     25) \
-GEN(D,      A5,     26) \
-GEN(DSHARP, A6,     27) \
-GEN(E,      A7,     28) \
-GEN(F,      A8,     29) \
-GEN(FSHARP, A9,     30) \
-GEN(G,      A10,    31) \
-GEN(GSHARP, A11,    32)
+    GEN(A,      A0,     21,  0.0364) \
+    GEN(BFLAT,  A1,     22,  0.0343) \
+    GEN(B,      A2,     23,  0.0324) \
+    GEN(C,      A3,     24,  0.0306) \
+    GEN(CSHARP, A4,     25,  0.0289) \
+    GEN(D,      A5,     26,  0.0272) \
+    GEN(DSHARP, A6,     27,  0.0257) \
+    GEN(E,      A7,     28,  0.0243) \
+    GEN(F,      A8,     29,  0.0229) \
+    GEN(FSHARP, A9,     30,  0.0216) \
+    GEN(G,      A10,    31,  0.0204) \
+    GEN(GSHARP, A11,    32,  0.0193)
 
-#define GEN_STRUCT(NAME, PIN, MIDINUM) \
-{   .name    = #NAME, \
-    .pin     = PIN, \
-    .midinum = MIDINUM },
 typedef struct {
     String name;
     int pin;
     int midinum;
+    float period;  // seconds
 } Note;
 
-//Enumerate our notes in order
-#define GEN_ENUM(NAME, PIN, MIDINUM) NAME,
+#define GEN_STRUCT(NAME, PIN, MIDINUM, PERIOD) \
+{   .name    = #NAME, \
+    .pin     = PIN, \
+    .midinum = MIDINUM, \
+    .period  = PERIOD },
+
+// Enumerate our notes in order
+#define GEN_ENUM(NAME, PIN, MIDINUM, PERIOD) NAME,
 enum Note_enum {
     FOREACH_NOTE(GEN_ENUM)
-        NUM_NOTES
+    NUM_NOTES
 };
 
+// Array of note structs
 static const Note notes[NUM_NOTES] =
 {
     FOREACH_NOTE(GEN_STRUCT)
 };
 
-//Keeps track of whether a note is currently on
+// Keeps track of whether a note is currently on
 static bool note_on[NUM_NOTES] = { 0 };
 
-static volatile bool window_complete = false;
-
-//Keeps track of the rolling RMS over the last
-//3ms of samples
+// Keeps track of the rolling RMS over the last
+// 3ms of samples
 static SampleQueue samplequeues[NUM_NOTES];
-
-//Partial solution
-static volatile int sum_squared_samples[NUM_NOTES] = { 0 };
 
 void setup() {
     setup_adc();
@@ -63,7 +63,7 @@ void setup() {
         pinMode(notes[i].pin,INPUT);
     }
 
-    //Set up timer callbacks
+    //Set up sampling timer
     Timer3.attachInterrupt(sample_isr).setFrequency(SAMPLE_RATE).start();
 }
 
@@ -124,7 +124,7 @@ void detect_notes() {
         }
          */
     #if DEBUG
-            Serial.println(rms);
+        Serial.println(rms);
     #endif
     }
 }
@@ -132,13 +132,22 @@ void detect_notes() {
 // Speeds up the ADC by setting certain bits
 // and sets the resolutions to 12 bits.
 void setup_adc() {
-    REG_ADC_MR = (REG_ADC_MR & 0xFFF0FFFF) | 0x00020000; //Set startup time
-    REG_ADC_MR = (REG_ADC_MR & 0xFFFFFF0F) | 0x00000080; //enable FREERUN mode
+    REG_ADC_MR = (REG_ADC_MR & 0xFFF0FFFF) | 0x00020000; // Set startup time
+    REG_ADC_MR = (REG_ADC_MR & 0xFFFFFF0F) | 0x00000080; // enable FREERUN mode
     analogReadResolution(12);
 }
 
-//Maps the wave amplitude to a velocity
+// Maps the wave amplitude to a velocity
 int amp_to_vel(int amp) {
-    return sqrt(amp);
+    // Intensity lin. proportional to Amplitude^2
+    int intensity = 1 * sq(amp) + 0;
+
+    // Volume lin. proportional to log(Intensity)
+    int volume    = 1 * log(intensity) + 0;
+
+    //TODO: How does velocity relate to volume?
+    int velocity  = 1 * volume;
+    velocity = constrain(velocity,0,MAXVELOCITY);
+    return velocity;
 }
 
