@@ -8,7 +8,7 @@ class SampleQueue {
 
     int getRMS();
 
-    bool transient_over();
+    bool is_transient_over();
   
   private:
     void zero_out();

@@ -27,16 +27,16 @@ bool SampleQueue::add(int newest){
 
   //Add the square of the new sample to the sum
   //and subtract out the square of the oldest sample
-  sample_squared_sum += newest*newest;
-  int oldest = storage[(head+1)%capacity];
-  sample_squared_sum -= oldest*oldest;
+  sample_squared_sum += sq(newest);
+  int oldest = storage[(head+1)%capacity]; //At tail
+  sample_squared_sum -= sq(oldest);
 
   if(empty_slots > 0) { empty_slots--; }
   
   head++;
 }
 
-bool SampleQueue::transient_over() {
+bool SampleQueue::is_transient_over() {
   return (empty_slots==0);
 }
 
