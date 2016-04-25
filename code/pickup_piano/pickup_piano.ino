@@ -8,33 +8,33 @@
 //GEN(NAME, PIN, MIDINUM)
 #define FOREACH_NOTE(GEN) \
     GEN(A,      A0,     21) \
-    GEN(BFLAT,  A1,     22) \
-    GEN(B,      A2,     23) \
-    GEN(C,      A3,     24) \
-    GEN(CSHARP, A4,     25) \
-    GEN(D,      A5,     26) \
-    GEN(DSHARP, A6,     27) \
-    GEN(E,      A7,     28) \
-    GEN(F,      A8,     29) \
-    GEN(FSHARP, A9,     30) \
-    GEN(G,      A10,    31) \
-    GEN(GSHARP, A11,    32)
+GEN(BFLAT,  A1,     22) \
+GEN(B,      A2,     23) \
+GEN(C,      A3,     24) \
+GEN(CSHARP, A4,     25) \
+GEN(D,      A5,     26) \
+GEN(DSHARP, A6,     27) \
+GEN(E,      A7,     28) \
+GEN(F,      A8,     29) \
+GEN(FSHARP, A9,     30) \
+GEN(G,      A10,    31) \
+GEN(GSHARP, A11,    32)
 
 #define GEN_STRUCT(NAME, PIN, MIDINUM) \
-    { .name    = #NAME, \
-      .pin     = PIN, \
-      .midinum = MIDINUM },
+{   .name    = #NAME, \
+    .pin     = PIN, \
+    .midinum = MIDINUM },
 typedef struct {
-  String name;
-  int pin;
-  int midinum;
+    String name;
+    int pin;
+    int midinum;
 } Note;
 
 //Enumerate our notes in order
 #define GEN_ENUM(NAME, PIN, MIDINUM) NAME,
 enum Note_enum {
     FOREACH_NOTE(GEN_ENUM)
-    NUM_NOTES
+        NUM_NOTES
 };
 
 static const Note notes[NUM_NOTES] =
@@ -55,8 +55,9 @@ static SampleQueue samplequeues[NUM_NOTES];
 static volatile int sum_squared_samples[NUM_NOTES] = { 0 };
 
 void setup() {
+    setup_adc();
     #if DEBUG
-      Serial.begin(9600);
+        Serial.begin(9600);
     #endif
     for(int i=0; i<NUM_NOTES; i++) {
         pinMode(notes[i].pin,INPUT);
@@ -77,23 +78,23 @@ void sample_isr() {
 }
 
 void noteOn(byte channel, byte pitch, byte velocity) {
-  midiEventPacket_t noteOn = {0x09, 0x90 | channel, pitch, velocity};
-  MidiUSB.sendMIDI(noteOn);
-  #if DEBUG
-    Serial.println("Note on");
-  #endif
+    midiEventPacket_t noteOn = {0x09, 0x90 | channel, pitch, velocity};
+    MidiUSB.sendMIDI(noteOn);
+    #if DEBUG
+        Serial.println("Note on");
+    #endif
 }
 
 void noteOff(byte channel, byte pitch, byte velocity) {
-  midiEventPacket_t noteOff = {0x08, 0x80 | channel, pitch, velocity};
-  MidiUSB.sendMIDI(noteOff);
-  #if DEBUG
-    Serial.println("Note off");
-  #endif
+    midiEventPacket_t noteOff = {0x08, 0x80 | channel, pitch, velocity};
+    MidiUSB.sendMIDI(noteOff);
+    #if DEBUG
+        Serial.println("Note off");
+    #endif
 }
 
 void loop() {
-  detect_notes();
+    detect_notes();
 }
 
 void detect_notes() {
@@ -117,19 +118,27 @@ void detect_notes() {
         //Note on --> on again (hit again before dying off completely)
         //TODO: This has a problem: it will fire repeatedly once a note is on
         else if (note_on[i]  &&  note_max[i] > NOTEON_THRESH) {
-            int velocity = amp_to_vel(note_max[i]);
-            noteOn(CHANNEL, notes[i].midinum, velocity);
-            MidiUSB.flush();
+        int velocity = amp_to_vel(note_max[i]);
+        noteOn(CHANNEL, notes[i].midinum, velocity);
+        MidiUSB.flush();
         }
-        */
-        #if DEBUG
-          Serial.println(rms);
-        #endif
+         */
+    #if DEBUG
+            Serial.println(rms);
+    #endif
     }
+}
+
+// Speeds up the ADC by setting certain bits
+// and sets the resolutions to 12 bits.
+void setup_adc() {
+    REG_ADC_MR = (REG_ADC_MR & 0xFFF0FFFF) | 0x00020000; //Set startup time
+    REG_ADC_MR = (REG_ADC_MR & 0xFFFFFF0F) | 0x00000080; //enable FREERUN mode
+    analogReadResolution(12);
 }
 
 //Maps the wave amplitude to a velocity
 int amp_to_vel(int amp) {
-  return sqrt(amp);
+    return sqrt(amp);
 }
 

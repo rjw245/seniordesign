@@ -7,7 +7,7 @@
 #define NUM_SAMP  (WINDOW*SAMPLE_RATE)
 
 //Remember that the midpoint is at ADC_MAX/2, roughly
-#define NOTEON_THRESH  1000
-#define NOTEOFF_THRESH 850 
+#define NOTEON_THRESH  4000
+#define NOTEOFF_THRESH 3400 
 #define CHANNEL        1
 
