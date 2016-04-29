@@ -41,7 +41,15 @@ bool SampleQueue::is_transient_over() {
 }
 
 int SampleQueue::getRMS(){
-    return sqrt((double)sample_squared_sum/(double)capacity);
+    return sqrt(((double)sample_squared_sum)/((double)capacity));
+}
+
+int SampleQueue::getNewest() {
+  return storage[(head+capacity-1)%capacity];
+}
+
+int SampleQueue::getOldest() {
+  return storage[(head+capacity)%capacity];
 }
 
 void SampleQueue::zero_out(){

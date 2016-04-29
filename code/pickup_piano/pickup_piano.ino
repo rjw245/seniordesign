@@ -3,11 +3,11 @@
 #include "samplequeue.h"
 #include "constants.h"
 
-#define DEBUG       1
+#define DEBUG      0
 
 // All note information to be passed to macros
 // GEN(NAME, PIN, MIDINUM, PERIOD)
-#define FOREACH_NOTE(GEN) \
+#define FOREACH_NOTE_ORIGINAL(GEN) \
     GEN(A,      A0,     21,  0.0364) \
     GEN(BFLAT,  A1,     22,  0.0343) \
     GEN(B,      A2,     23,  0.0324) \
@@ -20,6 +20,9 @@
     GEN(FSHARP, A9,     30,  0.0216) \
     GEN(G,      A10,    31,  0.0204) \
     GEN(GSHARP, A11,    32,  0.0193)
+
+#define FOREACH_NOTE(GEN) \
+    GEN(A,      A0,     21,  0.0364)
 
 typedef struct {
     String name;
@@ -95,6 +98,7 @@ void noteOff(byte channel, byte pitch, byte velocity) {
 
 void loop() {
     detect_notes();
+    //fake_sample_data();
 }
 
 void detect_notes() {
@@ -104,7 +108,7 @@ void detect_notes() {
         if (!note_on[i]  &&  rms > NOTEON_THRESH) {
             note_on[i]=true;
             int velocity = amp_to_vel(rms);
-            noteOn(CHANNEL, notes[i].midinum, velocity);
+            noteOn(CHANNEL, notes[i].midinum, 127);
             MidiUSB.flush();
         }
 
@@ -124,7 +128,7 @@ void detect_notes() {
         }
          */
     #if DEBUG
-        Serial.println(rms);
+        //Serial.println(rms);
     #endif
     }
 }
@@ -132,9 +136,9 @@ void detect_notes() {
 // Speeds up the ADC by setting certain bits
 // and sets the resolutions to 12 bits.
 void setup_adc() {
+    analogReadResolution(12);
     REG_ADC_MR = (REG_ADC_MR & 0xFFF0FFFF) | 0x00020000; // Set startup time
     REG_ADC_MR = (REG_ADC_MR & 0xFFFFFF0F) | 0x00000080; // enable FREERUN mode
-    analogReadResolution(12);
 }
 
 // Maps the wave amplitude to a velocity
@@ -149,5 +153,20 @@ int amp_to_vel(int amp) {
     int velocity  = 1 * volume;
     velocity = constrain(velocity,0,MAXVELOCITY);
     return velocity;
+}
+
+void fake_sample_data() {
+  for(int i=0; i<10000; i++) {
+    samplequeues[0].add(i);
+    #if DEBUG
+      Serial.print("Oldest: ");
+      Serial.print(samplequeues[0].getOldest());
+      Serial.print(" Newest: ");
+      Serial.print(samplequeues[0].getNewest());
+      Serial.print(" RMS: ");
+      Serial.println(samplequeues[0].getRMS());
+    #endif
+  }
+  while(1);
 }
 
