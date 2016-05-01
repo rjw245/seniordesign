@@ -4,7 +4,8 @@ class SampleQueue {
         SampleQueue();
         SampleQueue(int numSamp);
 
-        bool add(int sample);
+        bool push(int sample);
+        int pop();
 
         int getOldest();
         int getNewest();
@@ -13,6 +14,8 @@ class SampleQueue {
 
         bool is_transient_over();
 
+        
+
     private:
         void zero_out();
         volatile long long sample_squared_sum;
@@ -20,6 +23,7 @@ class SampleQueue {
         int capacity;
         volatile int empty_slots;
         volatile int head;
+        volatile int tail;
 
 };
 

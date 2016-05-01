@@ -90,7 +90,7 @@ void setup() {
 // sample queue.
 void sample_isr() {
     for(int i=0; i<NUM_NOTES; i++) {
-        samplequeues[i].add(analogRead(notes[i].pin));
+        samplequeues[i].push(analogRead(notes[i].pin));
         new_sample[i] = true;
     }
 }
@@ -169,7 +169,7 @@ int amp_to_vel(int amp) {
 
 void fake_sample_data() {
   for(int i=0; i<10000; i++) {
-    samplequeues[0].add(i);
+    samplequeues[0].push(i);
     DBG_PRINT("Oldest: ");
     DBG_PRINT(samplequeues[0].getOldest());
     DBG_PRINT(" Newest: ");
@@ -182,10 +182,12 @@ void fake_sample_data() {
 
 void print_new_samples() {
   for(int i=0; i<NUM_NOTES; i++) {
-    if(new_sample[i]) {
-      DBG_PRINT(notes[i].name);
-      DBG_PRINT(",");
-      DBG_PRINTLN(samplequeues[i].getNewest());
+    int popped=samplequeues[i].pop();
+    while(popped!=-1){
+      #if DEBUG
+        Serial.write(popped/16);
+      #endif
+      popped = samplequeues[i].pop();
     }
   }
 }
