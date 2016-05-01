@@ -3,7 +3,14 @@
 #include "samplequeue.h"
 #include "constants.h"
 
-#define DEBUG      0
+#define DEBUG       1
+#define BAUDRATE    115200
+
+#define DBG_PRINT(SOMETHING) \
+  if(DEBUG) { Serial.print(SOMETHING); }
+
+#define DBG_PRINTLN(SOMETHING) \
+  if(DEBUG) { Serial.println(SOMETHING); }
 
 // All note information to be passed to macros
 // GEN(NAME, PIN, MIDINUM, PERIOD)
@@ -57,10 +64,14 @@ static bool note_on[NUM_NOTES] = { 0 };
 // 3ms of samples
 static SampleQueue samplequeues[NUM_NOTES];
 
+// Flag, set to true when there is a new sample.
+// Set to false when flag is received.
+bool new_sample[NUM_NOTES]={ false };
+
 void setup() {
     setup_adc();
     #if DEBUG
-        Serial.begin(9600);
+        Serial.begin(BAUDRATE);
     #endif
     for(int i=0; i<NUM_NOTES; i++) {
         pinMode(notes[i].pin,INPUT);
@@ -68,6 +79,9 @@ void setup() {
 
     //Set up sampling timer
     Timer3.attachInterrupt(sample_isr).setFrequency(SAMPLE_RATE).start();
+    #if DEBUG
+      while(!Serial);
+    #endif
 }
 
 // ISR to be called at regular interval.
@@ -77,28 +91,26 @@ void setup() {
 void sample_isr() {
     for(int i=0; i<NUM_NOTES; i++) {
         samplequeues[i].add(analogRead(notes[i].pin));
+        new_sample[i] = true;
     }
 }
 
 void noteOn(byte channel, byte pitch, byte velocity) {
     midiEventPacket_t noteOn = {0x09, 0x90 | channel, pitch, velocity};
     MidiUSB.sendMIDI(noteOn);
-    #if DEBUG
-        Serial.println("Note on");
-    #endif
+    DBG_PRINTLN("Note on");
 }
 
 void noteOff(byte channel, byte pitch, byte velocity) {
     midiEventPacket_t noteOff = {0x08, 0x80 | channel, pitch, velocity};
     MidiUSB.sendMIDI(noteOff);
-    #if DEBUG
-        Serial.println("Note off");
-    #endif
+    DBG_PRINTLN("Note off");
 }
 
 void loop() {
-    detect_notes();
+    //detect_notes();
     //fake_sample_data();
+    print_new_samples();
 }
 
 void detect_notes() {
@@ -158,15 +170,31 @@ int amp_to_vel(int amp) {
 void fake_sample_data() {
   for(int i=0; i<10000; i++) {
     samplequeues[0].add(i);
-    #if DEBUG
-      Serial.print("Oldest: ");
-      Serial.print(samplequeues[0].getOldest());
-      Serial.print(" Newest: ");
-      Serial.print(samplequeues[0].getNewest());
-      Serial.print(" RMS: ");
-      Serial.println(samplequeues[0].getRMS());
-    #endif
+    DBG_PRINT("Oldest: ");
+    DBG_PRINT(samplequeues[0].getOldest());
+    DBG_PRINT(" Newest: ");
+    DBG_PRINT(samplequeues[0].getNewest());
+    DBG_PRINT(" RMS: ");
+    DBG_PRINTLN(samplequeues[0].getRMS());
   }
   while(1);
+}
+
+void print_new_samples() {
+  for(int i=0; i<NUM_NOTES; i++) {
+    if(new_sample[i]) {
+      DBG_PRINT(notes[i].name);
+      DBG_PRINT(",");
+      DBG_PRINTLN(samplequeues[i].getNewest());
+    }
+  }
+}
+
+void print_info(){
+  DBG_PRINT("Sample rate: "); DBG_PRINT(SAMPLE_RATE);
+  DBG_PRINT("Note on threshold: "); DBG_PRINT(NOTEON_THRESH);
+  DBG_PRINT("Note off threshold: "); DBG_PRINT(NOTEOFF_THRESH);
+  DBG_PRINT("RMS window: "); DBG_PRINT(WINDOW_PERIOD);
+  DBG_PRINTLN();
 }
 
