@@ -6,21 +6,21 @@
 
 SampleQueue::SampleQueue() {
     sample_squared_sum = 0;
-    capacity = DEFAULT_WINDOW;
-    storage = new int[capacity];
-    empty_slots = capacity;
     head = 0;
-    tail = capacity-1;
-    zero_out();
+    tail = head;
 }
 
 SampleQueue::SampleQueue(int numSamp){
     sample_squared_sum = 0;
-    capacity = numSamp;
+    head = 0;
+    tail = head;
+    init_size(numSamp);
+}
+
+void SampleQueue::init_size(int numSamps) {
+    capacity = numSamps;
     storage = new int[capacity];
     empty_slots = capacity;
-    head = 0;
-    tail = capacity-1;
     zero_out();
 }
 
@@ -36,20 +36,16 @@ int SampleQueue::pop() {
 }
 
 bool SampleQueue::push(int newest){
-    if(empty_slots==capacity) {
-      tail = head;
-    }
     storage[(head)%capacity] = newest;
     head = (head+1)%capacity;
     if(empty_slots > 0) { empty_slots--; }
-    if(empty_slots==0) {
-      tail = (tail+1)%capacity;
-    }
 
     //Add the square of the new sample to the sum
     //and subtract out the square of the oldest sample
     sample_squared_sum += sq(newest);
-    if(empty_slots<capacity) {
+    
+    if(empty_slots==0) {
+      tail = (tail+1)%capacity;
       int oldest = storage[(tail)%capacity]; //At tail
       sample_squared_sum -= sq(oldest);
     }

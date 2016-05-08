@@ -1,3 +1,4 @@
+#include <stdint.h>
 
 class SampleQueue {
     public:
@@ -14,11 +15,13 @@ class SampleQueue {
 
         bool is_transient_over();
 
+        void init_size(int numSamps);
+
         
 
     private:
         void zero_out();
-        volatile long long sample_squared_sum;
+        volatile uint64_t sample_squared_sum;
         int *storage;
         int capacity;
         volatile int empty_slots;

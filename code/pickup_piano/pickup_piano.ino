@@ -3,7 +3,7 @@
 #include "samplequeue.h"
 #include "constants.h"
 
-#define DEBUG       1
+#define DEBUG       0
 #define BAUDRATE    115200
 
 #define DBG_PRINT(SOMETHING) \
@@ -13,39 +13,41 @@
   if(DEBUG) { Serial.println(SOMETHING); }
 
 // All note information to be passed to macros
-// GEN(NAME, PIN, MIDINUM, PERIOD)
-#define FOREACH_NOTE_ORIGINAL(GEN) \
-    GEN(A,      A0,     21,  0.0364) \
-    GEN(BFLAT,  A1,     22,  0.0343) \
-    GEN(B,      A2,     23,  0.0324) \
-    GEN(C,      A3,     24,  0.0306) \
-    GEN(CSHARP, A4,     25,  0.0289) \
-    GEN(D,      A5,     26,  0.0272) \
-    GEN(DSHARP, A6,     27,  0.0257) \
-    GEN(E,      A7,     28,  0.0243) \
-    GEN(F,      A8,     29,  0.0229) \
-    GEN(FSHARP, A9,     30,  0.0216) \
-    GEN(G,      A10,    31,  0.0204) \
-    GEN(GSHARP, A11,    32,  0.0193)
-
+// GEN(NAME, PIN, MIDINUM, PERIOD, ON_THRESHOLD, OFF_THRESHOLD)
 #define FOREACH_NOTE(GEN) \
-    GEN(A,      A0,     21,  0.0364)
+GEN(A,      A2,     21,  0.0364,  1860,  1818) \
+GEN(BFLAT,  A0,     22,  0.0343,  1800,  1700) \
+GEN(B,      A1,     23,  0.0324,  1950,  1818) \
+GEN(C,      A3,     24,  0.0306,  900,  200) \
+GEN(CSHARP, A4,     25,  0.0289,  900,  200) \
+GEN(D,      A5,     26,  0.0272,  900,  200) \
+GEN(DSHARP, A6,     27,  0.0257,  900,  200) \
+GEN(E,      A7,     28,  0.0243,  900,  200) \
+GEN(F,      A8,     29,  0.0229,  900,  200) \
+GEN(FSHARP, A9,     30,  0.0216,  900,  200) \
+GEN(G,      A10,    31,  0.0204,  900,  200) \
+GEN(GSHARP, A11,    32,  0.0193,  900,  200)
+
 
 typedef struct {
     String name;
     int pin;
     int midinum;
     float period;  // seconds
+    int on_thresh;
+    int off_thresh;
 } Note;
 
-#define GEN_STRUCT(NAME, PIN, MIDINUM, PERIOD) \
+#define GEN_STRUCT(NAME, PIN, MIDINUM, PERIOD, ON_THRESHOLD, OFF_THRESHOLD) \
 {   .name    = #NAME, \
     .pin     = PIN, \
     .midinum = MIDINUM, \
-    .period  = PERIOD },
+    .period  = PERIOD, \
+    .on_thresh  = ON_THRESHOLD, \
+    .off_thresh =  OFF_THRESHOLD }, 
 
 // Enumerate our notes in order
-#define GEN_ENUM(NAME, PIN, MIDINUM, PERIOD) NAME,
+#define GEN_ENUM(NAME, PIN, MIDINUM, PERIOD, ON_THRESHOLD, OFF_THRESHOLD) NAME,
 enum Note_enum {
     FOREACH_NOTE(GEN_ENUM)
     NUM_NOTES
@@ -75,13 +77,13 @@ void setup() {
     #endif
     for(int i=0; i<NUM_NOTES; i++) {
         pinMode(notes[i].pin,INPUT);
+        samplequeues[i].init_size(notes[i].period*SAMPLE_RATE);
     }
+
+    DBG_PRINTLN("In Setup");
 
     //Set up sampling timer
     Timer3.attachInterrupt(sample_isr).setFrequency(SAMPLE_RATE).start();
-    #if DEBUG
-      while(!Serial);
-    #endif
 }
 
 // ISR to be called at regular interval.
@@ -108,16 +110,16 @@ void noteOff(byte channel, byte pitch, byte velocity) {
 }
 
 void loop() {
-    //detect_notes();
+    detect_notes();
     //fake_sample_data();
-    print_new_samples();
+    //print_new_samples();
 }
 
 void detect_notes() {
     for(int i=0; i<NUM_NOTES; i++) {
         int rms = samplequeues[i].getRMS();
         //Note off --> on
-        if (!note_on[i]  &&  rms > NOTEON_THRESH) {
+        if (!note_on[i]  &&  rms > notes[i].on_thresh) {
             note_on[i]=true;
             int velocity = amp_to_vel(rms);
             noteOn(CHANNEL, notes[i].midinum, 127);
@@ -125,7 +127,7 @@ void detect_notes() {
         }
 
         //Note on --> off
-        else if (note_on[i]  &&  rms < NOTEOFF_THRESH) {
+        else if (note_on[i]  &&  rms < notes[i].off_thresh) {
             note_on[i] = false;
             noteOff(CHANNEL, notes[i].midinum, 0);
             MidiUSB.flush();
@@ -139,9 +141,6 @@ void detect_notes() {
         MidiUSB.flush();
         }
          */
-    #if DEBUG
-        //Serial.println(rms);
-    #endif
     }
 }
 
@@ -150,7 +149,7 @@ void detect_notes() {
 void setup_adc() {
     analogReadResolution(12);
     REG_ADC_MR = (REG_ADC_MR & 0xFFF0FFFF) | 0x00020000; // Set startup time
-    REG_ADC_MR = (REG_ADC_MR & 0xFFFFFF0F) | 0x00000080; // enable FREERUN mode
+    //REG_ADC_MR = (REG_ADC_MR & 0xFFFFFF0F) | 0x00000080; // enable FREERUN mode
 }
 
 // Maps the wave amplitude to a velocity
