@@ -2,10 +2,12 @@
 #include "MIDIUSB.h"
 #include "samplequeue.h"
 #include "constants.h"
-#include <String>
 
 #define DEBUG       0
 #define PRINTRMS    0
+#define TESTDELAY   1  //If set to 1, sends a pin high when note is on
+#define TESTPIN     1  //Pin to set high
+
 #define BAUDRATE    115200
 #define ZEROTHRES   20
 
@@ -97,6 +99,10 @@ void setup() {
         samplequeues[i].init_size(notes[i].period*SAMPLE_RATE);
     }
 
+    #if TESTDELAY
+        pinMode(TESTPIN,OUTPUT);
+    #endif
+
     DBG_PRINTLN("In Setup");
 
     //CALIBRATION
@@ -140,12 +146,19 @@ void sample_isr() {
 
 void noteOn(byte channel, byte pitch, byte velocity) {
     midiEventPacket_t noteOn = {0x09, 0x90 | channel, pitch, velocity};
+    #if TESTDELAY
+        digitalWrite(TESTPIN,HIGH);
+    #endif
     MidiUSB.sendMIDI(noteOn);
     DBG_PRINTLN("Note on");
+    
 }
 
 void noteOff(byte channel, byte pitch, byte velocity) {
     midiEventPacket_t noteOff = {0x08, 0x80 | channel, pitch, velocity};
+    #if TESTDELAY
+        digitalWrite(TESTPIN,LOW);
+    #endif
     MidiUSB.sendMIDI(noteOff);
     DBG_PRINTLN("Note off");
     DBG_PRINTLN("-------------------");
@@ -217,7 +230,6 @@ void detect_notes() {
               DBG_PRINT("Velocity of "); DBG_PRINT(i); DBG_PRINT(": ");
               DBG_PRINTLN(vel);
               noteOn(CHANNEL, notes[i].midinum, vel);
-              MidiUSB.flush();
               notes[i].samplesTaken = 0;
            }
         }
