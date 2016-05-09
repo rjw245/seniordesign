@@ -17,6 +17,9 @@ SampleQueue::SampleQueue(int numSamp){
     init_size(numSamp);
 }
 
+int SampleQueue::getSize() {
+  return capacity;
+}
 void SampleQueue::init_size(int numSamps) {
     capacity = numSamps;
     storage = new int[capacity];
@@ -64,6 +67,11 @@ int SampleQueue::getRMS(){
 int SampleQueue::getNewest() {
   return storage[(head+capacity-1)%capacity];
 }
+
+int SampleQueue::nthFromEnd(int n) {
+  return storage[(head+capacity-1-n)%capacity];
+}
+
 
 int SampleQueue::getOldest() {
   return storage[(head+capacity)%capacity];

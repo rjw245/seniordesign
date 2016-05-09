@@ -4,15 +4,16 @@
 #include "constants.h"
 #include <String>
 
-#define DEBUG       1
+#define DEBUG       0
 #define PRINTRMS    0
 #define BAUDRATE    115200
+#define ZEROTHRES   20
 
 #define MAX_VEL     127
 #define LOUD_VEL    110
 
-#define NOTEON_VARIANCE   0.026
-#define NOTEOFF_VARIANCE  0.02
+#define NOTEON_VARIANCE   0.33
+#define NOTEOFF_VARIANCE  0.15
 
 #define CALIBRATIONTIME 100 //ms
 
@@ -25,9 +26,9 @@
 // All note information to be passed to macros
 // GEN(NAME, PIN, MIDINUM, PERIOD)
 #define FOREACH_NOTE(GEN) \
-GEN(A,      A2,     21,  0.0364) \
-GEN(BFLAT,  A0,     22,  0.0343)
-//GEN(B,      A1,     23,  0.0324) \
+GEN(A,      A0,     21,  0.0364) \
+GEN(BFLAT,  A1,     22,  0.0343)
+//GEN(B,      A2,     23,  0.0324) \
 //GEN(C,      A3,     24,  0.0306) \
 //GEN(CSHARP, A4,     25,  0.0289) \
 //GEN(D,      A5,     26,  0.0272) \
@@ -115,7 +116,7 @@ void setup() {
     //Set up sampling timer
     Timer3.attachInterrupt(sample_isr).setFrequency(SAMPLE_RATE).start();
     for(int i=0; i<NUM_NOTES; i++) {
-      notes[i].maxvol = calibrateVolume(i);
+      //notes[i].maxvol = calibrateVolume(i);
     }
 }
 
@@ -148,12 +149,37 @@ void loop() {
     //print_new_samples();
 }
 
+
+
+//metric for amplitude mapping
+int computeMetric(int i) {
+/*  int n=0;
+  while(abs(samplequeues[i].nthFromEnd(n)) > ZEROTHRES) {
+    n++;
+  }
+  int rv = ( abs(samplequeues[i].getNewest()) - abs(samplequeues[i].nthFromEnd(n)) ) / n; */
+
+  int rv = samplequeues[i].getNewest();
+  DBG_PRINT("Volume metric for note "); DBG_PRINT(i); DBG_PRINT(" "); DBG_PRINTLN(rv);
+}
+
+bool isNoteOn(int i) {
+  int numOver=0;
+  for(int n=0; n<50; n++){
+    if(samplequeues[i].nthFromEnd(n)>notes[i].on_thresh) {
+      numOver++;
+    }
+  }
+  return (numOver>25);
+}
+
 void detect_notes() {
     for(int i=0; i<NUM_NOTES; i++) {
         int rms = samplequeues[i].getRMS();
         //Note off --> on
-        if (!note_on[i]  &&  rms > notes[i].on_thresh) {
+        if (!note_on[i]  &&  isNoteOn(i)) {
             note_on[i]=true;
+            computeMetric(i);
             int velocity = amp_to_vel(rms);
             DBG_PRINT("Velocity of "); DBG_PRINT(i); DBG_PRINT(": ");
             DBG_PRINTLN(velocity);
