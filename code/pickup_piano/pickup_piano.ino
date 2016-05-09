@@ -2,9 +2,19 @@
 #include "MIDIUSB.h"
 #include "samplequeue.h"
 #include "constants.h"
+#include <String>
 
-#define DEBUG       0
+#define DEBUG       1
+#define PRINTRMS    0
 #define BAUDRATE    115200
+
+#define MAX_VEL     127
+#define LOUD_VEL    110
+
+#define NOTEON_VARIANCE   0.026
+#define NOTEOFF_VARIANCE  0.02
+
+#define CALIBRATIONTIME 100 //ms
 
 #define DBG_PRINT(SOMETHING) \
   if(DEBUG) { Serial.print(SOMETHING); }
@@ -13,20 +23,20 @@
   if(DEBUG) { Serial.println(SOMETHING); }
 
 // All note information to be passed to macros
-// GEN(NAME, PIN, MIDINUM, PERIOD, ON_THRESHOLD, OFF_THRESHOLD)
+// GEN(NAME, PIN, MIDINUM, PERIOD)
 #define FOREACH_NOTE(GEN) \
-GEN(A,      A2,     21,  0.0364,  1860,  1818) \
-GEN(BFLAT,  A0,     22,  0.0343,  1800,  1700) \
-GEN(B,      A1,     23,  0.0324,  1950,  1818) \
-GEN(C,      A3,     24,  0.0306,  900,  200) \
-GEN(CSHARP, A4,     25,  0.0289,  900,  200) \
-GEN(D,      A5,     26,  0.0272,  900,  200) \
-GEN(DSHARP, A6,     27,  0.0257,  900,  200) \
-GEN(E,      A7,     28,  0.0243,  900,  200) \
-GEN(F,      A8,     29,  0.0229,  900,  200) \
-GEN(FSHARP, A9,     30,  0.0216,  900,  200) \
-GEN(G,      A10,    31,  0.0204,  900,  200) \
-GEN(GSHARP, A11,    32,  0.0193,  900,  200)
+GEN(A,      A2,     21,  0.0364) \
+GEN(BFLAT,  A0,     22,  0.0343)
+//GEN(B,      A1,     23,  0.0324) \
+//GEN(C,      A3,     24,  0.0306) \
+//GEN(CSHARP, A4,     25,  0.0289) \
+//GEN(D,      A5,     26,  0.0272) \
+//GEN(DSHARP, A6,     27,  0.0257) \
+//GEN(E,      A7,     28,  0.0243) \
+//GEN(F,      A8,     29,  0.0229) \
+//GEN(FSHARP, A9,     30,  0.0216) \
+//GEN(G,      A10,    31,  0.0204) \
+//GEN(GSHARP, A11,    32,  0.0193)
 
 
 typedef struct {
@@ -36,25 +46,25 @@ typedef struct {
     float period;  // seconds
     int on_thresh;
     int off_thresh;
+    int midpt;
+    int maxvol;
 } Note;
 
-#define GEN_STRUCT(NAME, PIN, MIDINUM, PERIOD, ON_THRESHOLD, OFF_THRESHOLD) \
+#define GEN_STRUCT(NAME, PIN, MIDINUM, PERIOD) \
 {   .name    = #NAME, \
     .pin     = PIN, \
     .midinum = MIDINUM, \
-    .period  = PERIOD, \
-    .on_thresh  = ON_THRESHOLD, \
-    .off_thresh =  OFF_THRESHOLD }, 
+    .period  = PERIOD, }, 
 
 // Enumerate our notes in order
-#define GEN_ENUM(NAME, PIN, MIDINUM, PERIOD, ON_THRESHOLD, OFF_THRESHOLD) NAME,
+#define GEN_ENUM(NAME, PIN, MIDINUM, PERIOD) NAME,
 enum Note_enum {
     FOREACH_NOTE(GEN_ENUM)
     NUM_NOTES
 };
 
 // Array of note structs
-static const Note notes[NUM_NOTES] =
+static Note notes[NUM_NOTES] =
 {
     FOREACH_NOTE(GEN_STRUCT)
 };
@@ -82,8 +92,31 @@ void setup() {
 
     DBG_PRINTLN("In Setup");
 
+    //CALIBRATION
+    for(int i = 0; i < NUM_NOTES; i++) {
+        int t_i = millis();
+        int numiter = 0;
+        unsigned int sum = 0;
+        while(millis() < t_i + CALIBRATIONTIME) {
+            ++numiter;
+            sum += analogRead(notes[i].pin);
+        }
+        notes[i].midpt = sum / numiter;
+        if (DEBUG) {
+            Serial.print("Midpoint for note: ");
+            Serial.print(i);
+            Serial.print(" is ");
+            Serial.println(notes[i].midpt);
+        }
+        notes[i].on_thresh  = notes[i].midpt * NOTEON_VARIANCE;
+        notes[i].off_thresh = notes[i].midpt * NOTEOFF_VARIANCE;
+    }
+    
     //Set up sampling timer
     Timer3.attachInterrupt(sample_isr).setFrequency(SAMPLE_RATE).start();
+    for(int i=0; i<NUM_NOTES; i++) {
+      notes[i].maxvol = calibrateVolume(i);
+    }
 }
 
 // ISR to be called at regular interval.
@@ -92,7 +125,7 @@ void setup() {
 // sample queue.
 void sample_isr() {
     for(int i=0; i<NUM_NOTES; i++) {
-        samplequeues[i].push(analogRead(notes[i].pin));
+        samplequeues[i].push(analogRead(notes[i].pin) - notes[i].midpt );
         new_sample[i] = true;
     }
 }
@@ -122,6 +155,8 @@ void detect_notes() {
         if (!note_on[i]  &&  rms > notes[i].on_thresh) {
             note_on[i]=true;
             int velocity = amp_to_vel(rms);
+            DBG_PRINT("Velocity of "); DBG_PRINT(i); DBG_PRINT(": ");
+            DBG_PRINTLN(velocity);
             noteOn(CHANNEL, notes[i].midinum, 127);
             MidiUSB.flush();
         }
@@ -141,6 +176,13 @@ void detect_notes() {
         MidiUSB.flush();
         }
          */
+
+        #if PRINTRMS
+            if(i<2) {
+                DBG_PRINT("RMS for note "); DBG_PRINT(i); DBG_PRINT(": ");
+                DBG_PRINTLN(rms);
+            }
+        #endif
     }
 }
 
@@ -190,6 +232,38 @@ void print_new_samples() {
     }
   }
 }
+
+
+int calibrateVolume(int i) {
+  delay(1000);
+  DBG_PRINT("Play note really loud: "); DBG_PRINTLN(i); 
+  int maxrms=0;
+
+  //Wait for note to come on
+  while(!note_on[i]) {
+    int rms = samplequeues[i].getRMS();
+    if(rms > maxrms) { maxrms = rms; }
+    
+    //Note off --> on
+    if (rms > notes[i].on_thresh) {
+        note_on[i]=true;
+    }
+  }
+
+  while(note_on[i]) {
+    int rms = samplequeues[i].getRMS();
+    if(rms > maxrms) { maxrms = rms; }
+    
+    //Note off --> on
+    if (rms < notes[i].off_thresh) {
+        note_on[i]=false;
+    }
+  }
+  DBG_PRINT("Note "); DBG_PRINT(i); DBG_PRINT(" max RMS: ");
+  DBG_PRINTLN(maxrms);
+  return maxrms;
+}
+
 
 void print_info(){
   DBG_PRINT("Sample rate: "); DBG_PRINT(SAMPLE_RATE);

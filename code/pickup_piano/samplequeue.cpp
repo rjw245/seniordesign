@@ -71,5 +71,6 @@ int SampleQueue::getOldest() {
 
 void SampleQueue::zero_out(){
     for(int i=0; i<capacity; i++) { storage[i]=0; }
+    sample_squared_sum = 0;
 }
 

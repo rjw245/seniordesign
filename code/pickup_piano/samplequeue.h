@@ -16,11 +16,12 @@ class SampleQueue {
         bool is_transient_over();
 
         void init_size(int numSamps);
-
+        
+        //Fill with zeroes
+        void zero_out();
         
 
     private:
-        void zero_out();
         volatile uint64_t sample_squared_sum;
         int *storage;
         int capacity;
