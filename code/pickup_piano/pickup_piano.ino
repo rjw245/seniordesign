@@ -9,11 +9,16 @@
 #define BAUDRATE    115200
 #define ZEROTHRES   20
 
+#define MAX_VOLUME  900
 #define MAX_VEL     127
 #define LOUD_VEL    110
 
-#define NOTEON_VARIANCE   0.33
-#define NOTEOFF_VARIANCE  0.15
+
+
+#define NOTEON_VARIANCE   0.33 //.33 works pretty ok
+#define NUM_TO_BE_ON 10
+
+#define NOTEOFF_VARIANCE  0.15 // HIGHER NUMBER TURNS OFF AT LOWER VOLUME, 0 IS NEVER OFF
 
 #define CALIBRATIONTIME 100 //ms
 
@@ -49,6 +54,7 @@ typedef struct {
     int off_thresh;
     int midpt;
     int maxvol;
+    volatile int samplesTaken;
 } Note;
 
 #define GEN_STRUCT(NAME, PIN, MIDINUM, PERIOD) \
@@ -72,7 +78,7 @@ static Note notes[NUM_NOTES] =
 
 // Keeps track of whether a note is currently on
 static bool note_on[NUM_NOTES] = { 0 };
-
+static bool velocityDetermined[NUM_NOTES] = { 0 };
 // Keeps track of the rolling RMS over the last
 // 3ms of samples
 static SampleQueue samplequeues[NUM_NOTES];
@@ -128,6 +134,7 @@ void sample_isr() {
     for(int i=0; i<NUM_NOTES; i++) {
         samplequeues[i].push(analogRead(notes[i].pin) - notes[i].midpt );
         new_sample[i] = true;
+        notes[i].samplesTaken++;
     }
 }
 
@@ -141,6 +148,7 @@ void noteOff(byte channel, byte pitch, byte velocity) {
     midiEventPacket_t noteOff = {0x08, 0x80 | channel, pitch, velocity};
     MidiUSB.sendMIDI(noteOff);
     DBG_PRINTLN("Note off");
+    DBG_PRINTLN("-------------------");
 }
 
 void loop() {
@@ -152,44 +160,72 @@ void loop() {
 
 
 //metric for amplitude mapping
-int computeMetric(int i) {
+int computeMetric(int i,int numSamps) {
 /*  int n=0;
   while(abs(samplequeues[i].nthFromEnd(n)) > ZEROTHRES) {
     n++;
   }
   int rv = ( abs(samplequeues[i].getNewest()) - abs(samplequeues[i].nthFromEnd(n)) ) / n; */
-
-  int rv = samplequeues[i].getNewest();
+  
+  // int rv = sumLast50(i);
+  //int rv = samplequeues[i].getNewest() - samplequeues[i].nthFromEnd(30);
+  int sum =0;
+  for(int j = 0; j < numSamps; j++) {
+    sum += abs(samplequeues[i].nthFromEnd(j));
+  }
+  int rv = sum / numSamps;
   DBG_PRINT("Volume metric for note "); DBG_PRINT(i); DBG_PRINT(" "); DBG_PRINTLN(rv);
+  return rv;
 }
 
-bool isNoteOn(int i) {
+bool didNoteComeOn(int i) {
   int numOver=0;
-  for(int n=0; n<50; n++){
-    if(samplequeues[i].nthFromEnd(n)>notes[i].on_thresh) {
+  for(int n=0; n<10; n++){
+    if(abs(samplequeues[i].nthFromEnd(n))>notes[i].on_thresh) {
       numOver++;
     }
   }
-  return (numOver>25);
+  return (numOver>8);
+}
+
+int sumLast50(int i) {
+  int sum=0;
+  for(int n=0; n<7; n++){
+    sum += abs(samplequeues[i].nthFromEnd(n));
+  }
+  return sum;
 }
 
 void detect_notes() {
     for(int i=0; i<NUM_NOTES; i++) {
         int rms = samplequeues[i].getRMS();
-        //Note off --> on
-        if (!note_on[i]  &&  isNoteOn(i)) {
+        int numSamplesForVelocity = SAMPLE_RATE*0.006;
+        notes[i].samplesTaken++;
+        
+        //Note off --> action happened
+        if (!note_on[i]  &&  didNoteComeOn(i)) {
             note_on[i]=true;
-            computeMetric(i);
-            int velocity = amp_to_vel(rms);
-            DBG_PRINT("Velocity of "); DBG_PRINT(i); DBG_PRINT(": ");
-            DBG_PRINTLN(velocity);
-            noteOn(CHANNEL, notes[i].midinum, 127);
-            MidiUSB.flush();
+            velocityDetermined[i]=false;
+        }
+
+        else if(note_on[i] && !velocityDetermined[i]) {
+           if(numSamplesForVelocity < notes[i].samplesTaken) {
+              int vol = computeMetric(i, numSamplesForVelocity);
+              vol = constrain(vol,0,MAX_VOLUME);
+              int vel = vol/(MAX_VOLUME / MAX_VEL);
+              velocityDetermined[i] = true;
+              DBG_PRINT("Velocity of "); DBG_PRINT(i); DBG_PRINT(": ");
+              DBG_PRINTLN(vel);
+              noteOn(CHANNEL, notes[i].midinum, vel);
+              MidiUSB.flush();
+              notes[i].samplesTaken = 0;
+           }
         }
 
         //Note on --> off
-        else if (note_on[i]  &&  rms < notes[i].off_thresh) {
+        else if ( note_on[i]  &&  rms < notes[i].off_thresh) {
             note_on[i] = false;
+            DBG_PRINTLN(rms);
             noteOff(CHANNEL, notes[i].midinum, 0);
             MidiUSB.flush();
         }
