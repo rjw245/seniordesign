@@ -1,23 +1,14 @@
 import serial
-
 import os.path
+import sys
 
-num = 0;
-done = false;
-file = ""
-while not done:
+if __name__=="__main__":
 
-	file = "./../../data/data" + Str(num)+".csv"
-	if not os.path.isfile(file):
-		done = true
-		break
-
-f = open(file, "w")
-
-portname = ""
-ser = serial.Serial(portname)
-
-while true:
-	l = ser.readline()
-	f.write(l)
-	
+    argc = len(sys.argv);
+    assert(argc==4);
+    arduino = serial.Serial(sys.argv[1],int(sys.argv[2]))
+    f = open(sys.argv[3],'w');
+    while True:
+        amp = ord(arduino.read())
+	ampStr = str(amp)+"\n"
+        f.write(ampStr)
