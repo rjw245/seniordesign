@@ -3,7 +3,7 @@
 #include "samplequeue.h"
 #include "constants.h"
 
-#define DEBUG       0
+#define DEBUG       1
 #define PRINTRMS    0
 #define TESTDELAY   1  //If set to 1, sends a pin high when note is on
 #define TESTPIN     1  //Pin to set high
@@ -17,12 +17,12 @@
 
 
 
-#define NOTEON_VARIANCE   0.33 //.33 works pretty ok
+#define NOTEON_VARIANCE   0.20 //.33 works pretty ok
 #define NUM_TO_BE_ON 10
 
-#define NOTEOFF_VARIANCE  0.15 // HIGHER NUMBER TURNS OFF AT LOWER VOLUME, 0 IS NEVER OFF
+#define NOTEOFF_VARIANCE  0.08 // HIGHER NUMBER TURNS OFF AT LOWER VOLUME, 0 IS NEVER OFF
 
-#define CALIBRATIONTIME 100 //ms
+#define CALIBRATIONTIME 100 //millisecnds
 
 #define DBG_PRINT(SOMETHING) \
   if(DEBUG) { Serial.print(SOMETHING); }
@@ -34,17 +34,17 @@
 // GEN(NAME, PIN, MIDINUM, PERIOD)
 #define FOREACH_NOTE(GEN) \
 GEN(A,      A0,     21,  0.0364) \
-GEN(BFLAT,  A1,     22,  0.0343)
-//GEN(B,      A2,     23,  0.0324) \
-//GEN(C,      A3,     24,  0.0306) \
-//GEN(CSHARP, A4,     25,  0.0289) \
-//GEN(D,      A5,     26,  0.0272) \
-//GEN(DSHARP, A6,     27,  0.0257) \
-//GEN(E,      A7,     28,  0.0243) \
-//GEN(F,      A8,     29,  0.0229) \
-//GEN(FSHARP, A9,     30,  0.0216) \
-//GEN(G,      A10,    31,  0.0204) \
-//GEN(GSHARP, A11,    32,  0.0193)
+GEN(BFLAT,  A1,     22,  0.0343) \
+GEN(B,      A2,     23,  0.0324) \
+GEN(C,      A3,     24,  0.0306) \
+GEN(CSHARP, A4,     25,  0.0289) \
+GEN(D,      A5,     26,  0.0272) \
+GEN(DSHARP, A6,     27,  0.0257) \
+GEN(E,      A7,     28,  0.0243) \
+GEN(F,      A8,     29,  0.0229) \
+GEN(FSHARP, A9,     30,  0.0216) \
+GEN(G,      A10,    31,  0.0204) \
+GEN(GSHARP, A11,    32,  0.0193)
 
 
 typedef struct {
@@ -226,6 +226,7 @@ void detect_notes() {
               int vol = computeMetric(i, numSamplesForVelocity);
               vol = constrain(vol,0,MAX_VOLUME);
               int vel = vol/(MAX_VOLUME / MAX_VEL);
+              vel = constrain(vel, 0, MAX_VEL);
               velocityDetermined[i] = true;
               DBG_PRINT("Velocity of "); DBG_PRINT(i); DBG_PRINT(": ");
               DBG_PRINTLN(vel);
